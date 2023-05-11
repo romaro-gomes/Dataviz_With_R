@@ -1,0 +1,157 @@
+library(here)
+library(tidyverse)
+library(viridis)
+library(RColorBrewer)
+
+
+# Import Data 
+locations=read_csv('data/Kaggle_List_of_World_Citie_by_Population_Density/List_of_world_cities_by_population_density.csv')
+
+columns= colnames(locations)
+
+columns = tolower(columns) |> iconv(from = 'UTF-8', to = 'ASCII//TRANSLIT')
+
+#print(columns)
+
+columns = str_replace(columns,' ','')
+
+colnames(locations)=columns
+
+locations=locations[,-1]
+locations
+
+#locations$population |> str_view('\\[[\\d]\\]')|> print(n=100)
+#locations$population |> str_view('\\[[:alnum:]\\]')|> print(n=100)
+
+locations$population = locations$population |> str_remove_all('\\[[:alnum:]+\\]') |> str_remove_all(',')|> as.numeric()
+locations$`area(km2)`=locations$`area(km2)` |> str_remove_all('\\[[:alnum:]+\\]') |> as.numeric()
+
+#locations |> head()
+
+##  Mapas
+
+library(maps)
+library(mapproj)
+world<- map_data("world") 
+world |> head()
+world.cities$name = tolower(world.cities$name) |> iconv(from = 'UTF-8', to = 'ASCII//TRANSLIT')
+world.cities = world.cities |> rename('city'='name')
+world.cities =world.cities |> select(!c('country.etc','pop'))
+
+
+#world.cities |> colnames()
+
+locations$city =  tolower(locations$city) |> iconv(from = 'UTF-8', to = 'ASCII//TRANSLIT')
+
+data=left_join(locations, world.cities,multiple='first')
+data = na.omit(data)
+#data |> View()
+
+map = ggplot() +
+  geom_map(
+    data = world, map = world, fill='#c77a61',
+    aes(long, lat, map_id = region,fill=)
+  ) +
+  geom_point( 
+    data=data,position=position_jitter(h=0.15,w=0.15),
+    aes(x=long,
+        y=lat,
+        color=`density(/km2)`,
+        size=population)
+  ) +
+  labs(
+    title="World map with population and density of some cities",
+    caption ='Source: Kaggle' 
+      
+  ) +
+  scale_size_continuous(range=c(1,12)) +
+  scale_color_viridis(trans="log",option = 'H') +
+  theme(
+    panel.background = element_rect(fill='#20b2aa'),
+    panel.grid= element_blank(),
+    
+    plot.title = element_text(hjust = 0.5),
+    plot.caption = element_text(size=10, hjust = 0.01, face='bold'),
+    plot.caption.position = 'plot',
+    
+    axis.title =element_blank(),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    
+    legend.text = element_text(size=8),
+    legend.title = element_text(face='bold', size= 10)
+  )
+
+map
+
+ggsave(filename = 'world_map_by_density.png',plot = map)
+map + coord_map("globular")
+
+map + coord_map("elliptic",parameters = 10)
+
+
+population_world= data |>  ggplot() +
+  geom_col(aes(x=reorder(city,desc(population)),
+                         y=population,
+               fill=country)) +
+  labs(
+    title="Cities and the size of their population",
+    caption ='Source: Kaggle' 
+    
+  ) +
+  scale_fill_brewer(palette = 'Set3')+
+  theme(
+    panel.grid= element_blank(),
+    panel.background = element_rect(fill='#f8f8ff'),
+    
+    plot.title = element_text(hjust = 0.5),
+    plot.caption = element_text(size=10, hjust = 0.01, face='bold'),
+    plot.caption.position = 'plot',
+    plot.background = element_rect(fill='#f8f8ff'),
+    
+    axis.title =element_blank(),
+    axis.text = element_text(size = 8),
+    
+    
+    legend.text = element_text(size=8),
+    legend.title = element_blank(),
+    legend.background = element_rect(fill='#f8f8ff'),
+    legend.position = 'bottom'
+  ) +
+  coord_flip()
+
+ggsave(filename = 'map_by_population.png',plot = population_world)
+
+
+territorial_world= data |>  ggplot() +
+  geom_col(aes(x=reorder(city,`area(km2)`),
+               y=`area(km2)`,
+               fill=country)) +
+  labs(
+    title="Territorial size by city in Km2",
+    caption ='Source: Kaggle' 
+    
+  ) +
+  scale_fill_brewer(palette = 'Set3')+
+  theme(
+    panel.grid= element_blank(),
+    panel.background = element_rect(fill='#f8f8ff'),
+    
+    plot.title = element_text(hjust = 0.5),
+    plot.caption = element_text(size=10, hjust = 0.01, face='bold'),
+    plot.caption.position = 'plot',
+    plot.background = element_rect(fill='#f8f8ff'),
+    
+    axis.title =element_blank(),
+    axis.text = element_text(size = 8),
+    
+    
+    legend.text = element_text(size=8),
+    legend.title = element_blank(),
+    legend.background = element_rect(fill='#f8f8ff'),
+    legend.position = 'bottom'
+  ) +
+  coord_flip()
+
+ggsave(filename = 'map_by_territorial.png',plot = territorial_world)
+
